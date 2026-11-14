@@ -29,7 +29,9 @@ function slug(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
 function lsSet(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const D=c=>S.data[c];
-function goals(){return Object.assign({},DEFAULT_GOALS,(D("config").main||{}).goals||{})}
+function goals(date){const cfg=D("config").main||{};const base=Object.assign({},DEFAULT_GOALS,cfg.goals||{});
+  if(date&&cfg.goalsRest&&!((cfg.schedule||{})[dowIdx(date)]))return Object.assign({},base,cfg.goalsRest,{rest:true});
+  return base}
 
 /* ---------- macros ---------- */
 const MK=["kcal","p","c","f"];
@@ -153,7 +155,7 @@ function kcalChip(k,g,pref){if(k==null)return "";const r=k/g;const cls=r>1.08?"b
    HOY
    ========================================================= */
 function vHoy(){
-  const g=goals(),date=S.date,wk=weekStart(date);
+  const date=S.date,g=goals(date),wk=weekStart(date);
   const tot=dayLogTotals(date),items=dayLog(date),plan=dayPlan(date),pt=dayPlanTotals(date);
   const strip=Array.from({length:7},(_,i)=>{const d=addDays(wk,i);return `<button data-act="pickDate" data-d="${d}" class="${d===date?"on":""} ${d===todayStr()?"today":""} ${dayLog(d).length?"has":""}" aria-label="${DOWL[i]} ${dm(d)}"><span>${DOW[i]}</span><b>${pd(d).getDate()}</b><i></i></button>`}).join("");
   const remaining=g.kcal-(tot.kcal||0);
@@ -166,7 +168,7 @@ function vHoy(){
     <div class="strip">${strip}</div>
   </div>
   <section class="hero">
-    <div><div class="lbl">Registrado</div><div class="big num">${pre(tot,"kcal")}${fmt(tot.kcal,0)}</div><div class="lbl num">de ${fmt(g.kcal,0)} kcal · ${remaining>=0?"te quedan "+fmt(remaining,0):"te pasas "+fmt(-remaining,0)}</div><div class="bar"><i style="width:${pct(tot.kcal,g.kcal)}%;background:${(tot.kcal||0)>g.kcal*1.05?"var(--bad)":"var(--on-forest)"}"></i></div></div>
+    <div><div class="lbl">Registrado</div><div class="big num">${pre(tot,"kcal")}${fmt(tot.kcal,0)}</div><div class="lbl num">de ${fmt(g.kcal,0)} kcal${g.rest?" (descanso)":(D("config").main||{}).goalsRest?" (gym)":""} · ${remaining>=0?"te quedan "+fmt(remaining,0):"te pasas "+fmt(-remaining,0)}</div><div class="bar"><i style="width:${pct(tot.kcal,g.kcal)}%;background:${(tot.kcal||0)>g.kcal*1.05?"var(--bad)":"var(--on-forest)"}"></i></div></div>
     <div class="mac">${bar("p","var(--p)")}${bar("c","var(--c)")}${bar("f","var(--f)")}</div>
     <div class="foot"><span class="num">Plan del día: ${pt.libre||pt.empty?"≥ ":""}${fmt(pt.m.kcal,0)} kcal · P ${fmt(pt.m.p,0)} g${pt.libre?" · "+pt.libre+" libre":""}</span>${incomplete?`<span>Algún registro no tiene todos los macros (≥)</span>`:""}<button data-act="goals">Objetivos ⚙</button></div>
   </section>
@@ -463,11 +465,13 @@ function ingPickSheet(){return `<div class="sheet-h"><div><div class="eyebrow">I
 
 /* goals sheet */
 function goalsSheet(){
-  const g=goals(),cfg=D("config").main||{};
+  const g=goals(),cfg=D("config").main||{};const gr=Object.assign({},g,cfg.goalsRest||{});
   const kcalFromMacros=g.p*4+g.c*4+g.f*9;
   return sheetHead("Objetivos diarios")+`<form class="stack" data-form="goals">
   <div class="grid4"><div class="field"><label for="gK">kcal</label><input class="input" id="gK" type="number" value="${g.kcal}"></div><div class="field"><label for="gP">Prot. g</label><input class="input" id="gP" type="number" value="${g.p}"></div><div class="field"><label for="gC">HC g</label><input class="input" id="gC" type="number" value="${g.c}"></div><div class="field"><label for="gF">Grasa g</label><input class="input" id="gF" type="number" value="${g.f}"></div></div>
-  <div class="note num">Tus macros suman ${fmt(kcalFromMacros,0)} kcal (P×4 + HC×4 + G×9).${cfg.profile?` Proteína: ${fmt(g.p/cfg.profile.weightKg,2)} g por kg de peso.`:""}</div>
+  <div class="eyebrow" style="margin-top:4px">Días de descanso (sin rutina asignada)</div>
+  <div class="grid4"><div class="field"><label for="gKr">kcal</label><input class="input" id="gKr" type="number" value="${cfg.goalsRest?gr.kcal:""}" placeholder="igual"></div><div class="field"><label for="gPr">Prot. g</label><input class="input" id="gPr" type="number" value="${cfg.goalsRest?gr.p:""}" placeholder="igual"></div><div class="field"><label for="gCr">HC g</label><input class="input" id="gCr" type="number" value="${cfg.goalsRest?gr.c:""}" placeholder="igual"></div><div class="field"><label for="gFr">Grasa g</label><input class="input" id="gFr" type="number" value="${cfg.goalsRest?gr.f:""}" placeholder="igual"></div></div>
+  <div class="note num">Días de gym: tus macros suman ${fmt(kcalFromMacros,0)} kcal (P×4 + HC×4 + G×9).${cfg.profile?` Proteína: ${fmt(g.p/cfg.profile.weightKg,2)} g por kg de peso.`:""}</div>
   ${cfg.explanation?`<div class="small muted">${esc(cfg.explanation)}</div>`:""}
   <button class="btn primary block" type="submit">Guardar objetivos</button></form>`;
 }
@@ -483,13 +487,13 @@ function vSemana(){
   if(S.ui.semTab==="entreno")return h+semEntreno(wk)+`</div>`;
   const days=Array.from({length:7},(_,i)=>addDays(wk,i));
   let totK=0,totP=0,kDays=0,lowP=0,libres=0;
-  days.forEach(d=>{const t=dayPlanTotals(d);libres+=t.libre;if(!t.libre&&!t.empty){totK+=t.m.kcal;totP+=t.m.p;kDays++;if(t.m.p<g.p*.9)lowP++}});
+  days.forEach(d=>{const t=dayPlanTotals(d);libres+=t.libre;if(!t.libre&&!t.empty){totK+=t.m.kcal;totP+=t.m.p;kDays++;if(t.m.p<goals(d).p*.9)lowP++}});
   h+=`<div class="card stack"><div class="between"><h3>Resumen del plan</h3><button class="btn primary sm" data-act="shopping">Lista de la compra</button></div>
   <div class="stats"><div class="stat"><b class="num">${kDays?fmt(totK/kDays,0):"—"}</b><span>kcal/día media*</span></div><div class="stat"><b class="num">${kDays?fmt(totP/kDays,0):"—"}</b><span>g proteína/día*</span></div><div class="stat"><b class="num">${lowP}</b><span>días bajo ${fmt(g.p*.9,0)} g P</span></div></div>
-  <div class="small muted">*Media de los ${kDays} días planificados completos. ${libres?libres+" comidas libres no cuentan.":""} Objetivo: ${g.kcal} kcal y ${g.p} g de proteína.</div></div>`;
+  <div class="small muted">*Media de los ${kDays} días planificados completos. ${libres?libres+" comidas libres no cuentan.":""} Objetivo: ${(D("config").main||{}).goalsRest?`${g.kcal} kcal días de gym · ${Object.assign({},g,(D("config").main||{}).goalsRest).kcal} kcal descanso`:g.kcal+" kcal"} y ${g.p} g de proteína.</div></div>`;
   days.forEach((d,i)=>{
-    const p=dayPlan(d),t=dayPlanTotals(d);
-    h+=`<div class="card day ${d===todayStr()?"today":""}"><div class="day-h"><h3>${DOWL[i]} <span class="muted small" style="font-family:var(--font-body)">${dm(d)}${d===todayStr()?" · hoy":""}</span></h3><div class="row">${kcalChip(t.m.kcal,g.kcal,t.libre||t.empty?"≥ ":"")}${protChip(t.m.p,g.p)}</div></div>`;
+    const p=dayPlan(d),t=dayPlanTotals(d),gd=goals(d),rt=routineFor(d);
+    h+=`<div class="card day ${d===todayStr()?"today":""}"><div class="day-h"><h3>${DOWL[i]} <span class="muted small" style="font-family:var(--font-body)">${dm(d)}${d===todayStr()?" · hoy":""}</span></h3><div class="row">${kcalChip(t.m.kcal,gd.kcal,t.libre||t.empty?"≥ ":"")}${protChip(t.m.p,gd.p)}</div></div><div class="small muted">${rt?"🏋 "+esc(rt.name)+" · objetivo "+gd.kcal+" kcal":"Descanso · objetivo "+gd.kcal+" kcal"}</div>`;
     SLOTS.forEach(s=>{const e=p[s.k];h+=`<button class="prow" data-act="planSlot" data-d="${d}" data-slot="${s.k}"><span class="s">${s.n}</span><span class="n ${e?"":"empty"}">${e?esc(e.title)+(e.serv&&e.serv!==1?" × "+fmt(e.serv):""):s.opt?"—":"+ Elegir"}</span><span class="k num">${e&&!e.libre?fmt(e.m.kcal,0):""}</span></button>`});
     h+=`</div>`;
   });
@@ -843,7 +847,7 @@ document.addEventListener("submit",e=>{
   if(f.dataset.form==="food"){const date=f.dataset.d,id=f.dataset.id;const items=dayLog(date).slice();const rec={name:v("fName").trim(),kcal:n(v("fK")),p:n(v("fP")),c:n(v("fC")),f:n(v("fF")),notes:v("fNotes").trim(),estimated:document.getElementById("fEst").checked};
     if(id){const ix=items.findIndex(i=>i.id===id);items[ix]=Object.assign({},items[ix],rec,{slot:v("fSlot")})}else items.push(Object.assign({id:uid(),slot:f.dataset.slot||"extra"},rec));
     setLog(date,items);closeSheet();toast(id?"Cambios guardados":"Registrado")}
-  if(f.dataset.form==="goals"){const cfg=Object.assign({},D("config").main||{});cfg.goals={kcal:n(v("gK"))||1700,p:n(v("gP"))||120,c:n(v("gC"))||170,f:n(v("gF"))||60};save("config/main",cfg);closeSheet();toast("Objetivos guardados")}
+  if(f.dataset.form==="goals"){const cfg=Object.assign({},D("config").main||{});cfg.goals={kcal:n(v("gK"))||1700,p:n(v("gP"))||120,c:n(v("gC"))||170,f:n(v("gF"))||60};if(n(v("gKr"))){cfg.goalsRest={kcal:n(v("gKr")),p:n(v("gPr"))||cfg.goals.p,c:n(v("gCr"))||cfg.goals.c,f:n(v("gFr"))||cfg.goals.f}}else delete cfg.goalsRest;save("config/main",cfg);closeSheet();toast("Objetivos guardados")}
   if(f.dataset.form==="planCustom"){const d=f.dataset.d,sl=f.dataset.slot;const p=Object.assign({},D("plan")[d]||{});p[sl]={type:"custom",title:v("pcN"),kcal:n(v("pcK")),p:n(v("pcP")),c:n(v("pcC")),f:n(v("pcF"))};save("plan/"+d,p);closeSheet()}
   if(f.dataset.form==="recipe"){const d=S.ui.recDraft;if(!d.title.trim()){toast("Ponle nombre");return}const id=d._id||slug(d.title);const out={title:d.title.trim(),servings:n(d.servings)||1,slots:d.slots||[],ingredients:(d.ingredients||[]).filter(i=>i.name.trim()).map(i=>({name:i.name.trim(),qty:n(i.qty),unit:i.unit||"g",per100:i.per100||{}})),steps:d.steps||"",fav:!!d.fav,estimated:!!d.estimated,notes:d.notes||""};if(!out.ingredients.length)MK.forEach(k=>out[k]=n(d[k]));save("recipes/"+id,out);closeSheet();toast("Receta guardada")}
   if(f.dataset.form==="product"){const d=S.ui.prodDraft;const name=v("pdN").trim();if(!name)return;const id=d._id||slug((v("pdB")?v("pdB")+" ":"")+name);
