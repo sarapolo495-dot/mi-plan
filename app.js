@@ -172,7 +172,9 @@ function vHoy(){
     <div class="mac">${bar("p","var(--p)")}${bar("c","var(--c)")}${bar("f","var(--f)")}</div>
     <div class="foot"><span class="num">Plan del día: ${pt.libre||pt.empty?"≥ ":""}${fmt(pt.m.kcal,0)} kcal · P ${fmt(pt.m.p,0)} g${pt.libre?" · "+pt.libre+" libre":""}</span>${incomplete?`<span>Algún registro no tiene todos los macros (≥)</span>`:""}<button data-act="goals">Objetivos ⚙</button></div>
   </section>
-  <section class="stack"><div class="between"><h2>Tus comidas</h2><button class="btn soft sm" data-act="copyPlanDay">Copiar plan a registrado</button></div>`;
+  ${date===todayStr()?checkinCard():""}
+  ${date===todayStr()?weekReportCard():""}
+  <section class="stack"><div class="between"><h2>Tus comidas</h2><button class="btn soft sm" data-act="copyPlanDay">✓ Comí todo lo del plan</button></div>`;
   SLOTS.forEach(s=>{
     const logged=items.filter(i=>i.slot===s.k);const pe=plan[s.k];
     if(s.opt&&!logged.length&&!pe){html+=`<div class="between card planned" style="padding:10px 14px"><span class="muted small">${s.n} (opcional)</span><button class="btn sm soft" data-act="addFood" data-slot="${s.k}">+ Añadir</button></div>`;return}
@@ -463,6 +465,57 @@ function bumpUse(id){const p=D("products")[id];if(p)save("products/"+id,Object.a
 
 function ingPickSheet(){return `<div class="sheet-h"><div><div class="eyebrow">Ingrediente</div><h2>Elegir producto</h2></div><button class="btn ghost" data-act="backToRecipe">‹ Volver</button></div><input class="search" id="ingPQ" placeholder="Buscar producto…" value="${esc(S.ui.pickQ||"")}" data-act="ingPQ"><div class="stack">${productRows(S.ui.pickQ||"","pickIng")}</div><div class="row wrap"><button class="btn soft" data-act="barcode" data-from="recipe">▥ Código de barras</button>${S.canScan?`<button class="btn soft" data-act="scan" data-from="recipe">📷 Etiqueta</button>`:""}</div>`}
 
+/* ---------- seguimiento ---------- */
+function weightList(){return Object.entries(D("weights")).map(([d,w])=>({date:d,kg:n(w.kg),waist:n(w.waist),note:w.note})).sort((a,b)=>a.date.localeCompare(b.date))}
+function avgKg(ws,from,to,k){const s=ws.filter(w=>w.date>from&&w.date<=to&&w[k||"kg"]!=null);return s.length?{v:s.reduce((a,w)=>a+w[k||"kg"],0)/s.length,n:s.length}:null}
+function lastWaist(ws,before){const s=ws.filter(w=>w.waist!=null&&(!before||w.date<=before));return s.length?s[s.length-1]:null}
+function checkinCard(){
+  const t=todayStr(),w=D("weights")[t],ws=weightList();
+  const lw=lastWaist(ws);const needWaist=!lw||lw.date<=addDays(t,-7);
+  if(w&&w.kg&&!needWaist)return `<div class="card between" style="padding:10px 14px"><span class="small">⚖️ Hoy: <b class="num">${fmt(n(w.kg))} kg</b>${w.waist?` · cintura <b class="num">${fmt(n(w.waist))} cm</b>`:""}</span><a class="btn ghost sm" href="#progreso" data-act="progTabPeso">Ver evolución ›</a></div>`;
+  if(S.ui.skipCheckin===t)return "";
+  return `<form class="card stack" data-form="checkin"><div class="between"><h3>Control rápido</h3><button type="button" class="btn ghost sm" data-act="skipCheckin">Hoy no</button></div>
+  <div class="small muted">${w&&w.kg?"":"Pésate en ayunas, después del baño. "}${needWaist?"La cintura, una vez por semana a la altura del ombligo, sin apretar.":""}</div>
+  <div class="grid2">${w&&w.kg?`<div class="field"><label>Peso de hoy</label><div class="num" style="padding:9px 0"><b>${fmt(n(w.kg))} kg</b></div></div>`:`<div class="field"><label for="ciK">Peso (kg)</label><input class="input num" id="ciK" type="number" step="0.1" inputmode="decimal" placeholder="${(ws.filter(x=>x.kg).slice(-1)[0]||{}).kg||""}"></div>`}
+  ${needWaist?`<div class="field"><label for="ciW">Cintura (cm)</label><input class="input num" id="ciW" type="number" step="0.5" inputmode="decimal" placeholder="${lw?lw.waist:""}"></div>`:""}</div>
+  <button class="btn primary sm" type="submit">Guardar</button></form>`;
+}
+function weekReport(){
+  const t=todayStr();const days=Array.from({length:7},(_,i)=>addDays(t,i-7));
+  const full=d=>{const it=dayLog(d);return it.some(i=>i.slot==="comida")&&it.some(i=>i.slot==="cena")};
+  const logged=days.filter(full);const partial=days.filter(d=>dayLog(d).length&&!full(d)).length;
+  let k=0,p=0,tg=0,tp=0;logged.forEach(d=>{const x=dayLogTotals(d),g=goals(d);k+=x.kcal||0;p+=x.p||0;tg+=g.kcal;tp+=g.p});
+  const n_=logged.length;const r={n:n_,partial,kcal:n_?k/n_:null,p:n_?p/n_:null,tKcal:n_?tg/n_:null,tP:n_?tp/n_:null};
+  const ws=weightList().filter(w=>w.kg!=null);
+  r.w1=avgKg(ws,addDays(t,-7),t);r.w0=avgKg(ws,addDays(t,-14),addDays(t,-7));r.w2=avgKg(ws,addDays(t,-21),addDays(t,-14));
+  const all=weightList();const lw=lastWaist(all);const ow=lw?lastWaist(all,addDays(lw.date,-13)):null;r.waist=lw;r.waistPrev=ow;
+  return r;
+}
+function weekReportCard(){
+  const r=weekReport();const msgs=[];
+  if(r.partial)msgs.push(["warn",`${r.partial} día${r.partial>1?"s":""} con comidas sin apuntar (falta la comida o la cena): no cuenta${r.partial>1?"n":""} para las medias.`]);
+  if(r.n<4)msgs.push(["warn",`Llevas ${r.n} de los últimos 7 días completos. Con 5 o más, los números ya te dicen la verdad. El truco: si comes lo del plan, un toque en "✓ Comí todo lo del plan" y listo.`]);
+  else{
+    const d=r.kcal-r.tKcal;
+    if(d>100)msgs.push(["bad",`Comes de media <b>${fmt(d,0)} kcal al día más</b> de tu objetivo. Esto basta para frenar la pérdida de grasa: revisa aceite, picoteo y fines de semana.`]);
+    else if(d<-300)msgs.push(["warn",`Comes de media ${fmt(-d,0)} kcal menos de lo previsto. No hace falta tanto: puedes rendir peor en el gym y tener más hambre luego.`]);
+    else msgs.push(["ok",`Calorías en su sitio: ${fmt(r.kcal,0)} kcal/día de media (objetivo ${fmt(r.tKcal,0)}).`]);
+    if(r.p<105)msgs.push(["bad",`Proteína baja: <b>${fmt(r.p,0)} g/día</b> de media (objetivo ${fmt(r.tP,0)}). Sin proteína el déficit se lleva también músculo. Usa el batido o el sándwich.`]);
+    else msgs.push(["ok",`Proteína bien: ${fmt(r.p,0)} g/día de media.`]);
+  }
+  if(r.w1&&r.w0&&r.w1.n>=2&&r.w0.n>=2){
+    const dw=r.w1.v-r.w0.v;
+    if(dw<=-0.1)msgs.push(["ok",`Peso medio bajando: <b>${fmt(dw,1)} kg</b> respecto a la semana anterior. Vas bien.`]);
+    else if(dw<0.2){const stuck=r.w2&&r.w2.n>=2&&Math.abs(r.w0.v-r.w2.v)<0.2;msgs.push(["warn",`Peso medio estable (${dw>0?"+":""}${fmt(dw,1)} kg).${stuck&&r.n>=5&&r.kcal&&r.kcal-r.tKcal<=100?" Llevas 2 semanas así comiendo lo previsto: toca bajar 100 kcal (dímelo y lo ajusto).":" Es normal alguna semana; mira la cintura."}`])}
+    else msgs.push(["warn",`Peso medio +${fmt(dw,1)} kg. Puede ser agua (sal, regla, más carbohidratos o agujetas); si se repite la semana que viene, revisamos.`]);
+  }else msgs.push(["warn",`Para ver tendencia necesito al menos 2 pesos esta semana y 2 la anterior. Pésate 2–3 mañanas por semana.`]);
+  if(r.waist&&r.waistPrev){const dc=r.waist.waist-r.waistPrev.waist;msgs.push([dc<0?"ok":"warn",`Cintura: ${fmt(r.waist.waist,1)} cm (${dc>0?"+":""}${fmt(dc,1)} cm desde el ${dm(r.waistPrev.date)}).${dc<0?" Esto es grasa que se va.":""}`])}
+  const icon={ok:"✅",warn:"🟡",bad:"🔴"};
+  return `<section class="card stack"><div class="between"><h2>Cómo vas</h2><span class="small muted">últimos 7 días</span></div>
+  <div class="stats"><div class="stat"><b class="num">${r.n}<span class="muted small" style="font-family:var(--font-body)">/7</span></b><span>días completos</span></div><div class="stat"><b class="num">${fmt(r.kcal,0)}</b><span>kcal/día</span></div><div class="stat"><b class="num">${fmt(r.p,0)}</b><span>g prot./día</span></div></div>
+  <div class="stack" style="gap:8px">${msgs.map(([c,m])=>`<div class="small" style="display:flex;gap:8px"><span>${icon[c]}</span><span>${m}</span></div>`).join("")}</div></section>`;
+}
+
 /* goals sheet */
 function goalsSheet(){
   const g=goals(),cfg=D("config").main||{};const gr=Object.assign({},g,cfg.goalsRest||{});
@@ -664,7 +717,8 @@ function vProgreso(){
   <div class="seg"><button class="${S.ui.progTab==="alimentacion"?"on":""}" data-act="progTab" data-t="alimentacion">Alimentación</button><button class="${S.ui.progTab==="peso"?"on":""}" data-act="progTab" data-t="peso">Peso</button><button class="${S.ui.progTab==="entreno"?"on":""}" data-act="progTab" data-t="entreno">Entreno</button></div></div>`;
   if(S.ui.progTab==="peso")return h+progPeso()+`</div>`;
   if(S.ui.progTab==="entreno")return h+progEntreno()+`</div>`;
-  const logged=days.filter(d=>dayLog(d).length);
+  const full=d=>{const it=dayLog(d);return it.some(i=>i.slot==="comida")&&it.some(i=>i.slot==="cena")};
+  const logged=days.filter(full);const partial=days.filter(d=>dayLog(d).length&&!full(d)).length;
   const tots=logged.map(dayLogTotals);
   const avgK=tots.length?tots.reduce((a,t)=>a+t.kcal,0)/tots.length:null;
   const avgP=tots.length?tots.reduce((a,t)=>a+t.p,0)/tots.length:null;
@@ -678,15 +732,16 @@ function vProgreso(){
   return h+`</div>`;
 }
 function progPeso(){
-  const ws=Object.entries(D("weights")).map(([d,w])=>({date:d,kg:n(w.kg),note:w.note})).filter(w=>w.kg).sort((a,b)=>a.date.localeCompare(b.date));
+  const ws=weightList().filter(w=>w.kg);const wsW=weightList().filter(w=>w.waist!=null);
   const prof=(D("config").main||{}).profile;
   const last=ws[ws.length-1],first=ws[0];
   const avg=(from,to)=>{const s=ws.filter(w=>w.date>from&&w.date<=to);return s.length?s.reduce((a,w)=>a+w.kg,0)/s.length:null};
   const t=todayStr();const a1=avg(addDays(t,-7),t),a0=avg(addDays(t,-14),addDays(t,-7));
-  let h=`<form class="card stack" data-form="weight"><h3>Registrar peso</h3><div class="grid2"><div class="field"><label for="wtD">Fecha</label><input class="input" id="wtD" type="date" value="${t}"></div><div class="field"><label for="wtK">Peso (kg)</label><input class="input" id="wtK" type="number" step="0.1" inputmode="decimal" placeholder="${last?fmt(last.kg):prof?prof.weightKg:""}" required></div></div><div class="field"><label for="wtN">Cómo te sientes (opcional)</label><input class="input" id="wtN" placeholder="p. ej. hinchada, regla, dormí mal…"></div><button class="btn primary" type="submit">Guardar</button><div class="small muted">Mejor en ayunas, después del baño, 2–3 veces por semana. Fíjate en la media semanal, no en el dato suelto.</div></form>`;
+  let h=`<form class="card stack" data-form="weight"><h3>Registrar peso</h3><div class="grid2"><div class="field"><label for="wtD">Fecha</label><input class="input" id="wtD" type="date" value="${t}"></div><div class="field"><label for="wtK">Peso (kg)</label><input class="input" id="wtK" type="number" step="0.1" inputmode="decimal" placeholder="${last?fmt(last.kg):prof?prof.weightKg:""}" required></div></div><div class="field"><label for="wtW">Cintura (cm, opcional · 1 vez por semana)</label><input class="input" id="wtW" type="number" step="0.5" inputmode="decimal"></div><div class="field"><label for="wtN">Cómo te sientes (opcional)</label><input class="input" id="wtN" placeholder="p. ej. hinchada, regla, dormí mal…"></div><button class="btn primary" type="submit">Guardar</button><div class="small muted">Mejor en ayunas, después del baño, 2–3 veces por semana. Fíjate en la media semanal, no en el dato suelto.</div></form>`;
   h+=`<div class="stats"><div class="stat"><b class="num">${last?fmt(last.kg):"—"}</b><span>último (kg)</span></div><div class="stat"><b class="num">${fmt(a1)}</b><span>media 7 días</span></div><div class="stat"><b class="num">${a1!=null&&a0!=null?(a1-a0>0?"+":"")+fmt(a1-a0,1):"—"}</b><span>vs semana anterior</span></div></div>`;
   h+=ws.length>1?`<div class="card stack"><h3>Evolución</h3>${lineChart(ws.map(w=>({x:w.date,y:w.kg})),{unit:"kg"})}${first&&last?`<div class="small muted num">Desde ${dm(first.date)}: ${(last.kg-first.kg>0?"+":"")+fmt(last.kg-first.kg,1)} kg</div>`:""}</div>`:`<div class="empty card">${prof?`Tu perfil parte de ${prof.weightKg} kg. `:""}Con dos registros aparece la gráfica.</div>`;
-  if(ws.length)h+=`<div class="card"><h3 style="margin-bottom:6px">Registros</h3>${ws.slice().reverse().slice(0,20).map(w=>`<div class="ing"><span class="num">${esc(longDate(w.date))}</span><span class="num"><b>${fmt(w.kg)}</b> kg <button class="btn ghost sm" data-act="delWeight" data-d="${w.date}" aria-label="Borrar">✕</button></span>${w.note?`<span class="q">${esc(w.note)}</span>`:""}</div>`).join("")}</div>`;
+  if(wsW.length>1)h+=`<div class="card stack"><h3>Cintura</h3>${lineChart(wsW.map(w=>({x:w.date,y:w.waist})),{unit:"cm"})}<div class="small muted num">Desde ${dm(wsW[0].date)}: ${(wsW[wsW.length-1].waist-wsW[0].waist>0?"+":"")+fmt(wsW[wsW.length-1].waist-wsW[0].waist,1)} cm. Si la cintura baja aunque el peso no se mueva, estás perdiendo grasa y ganando músculo.</div></div>`;
+  if(ws.length)h+=`<div class="card"><h3 style="margin-bottom:6px">Registros</h3>${ws.slice().reverse().slice(0,20).map(w=>`<div class="ing"><span class="num">${esc(longDate(w.date))}</span><span class="num"><b>${fmt(w.kg)}</b> kg${w.waist!=null?" · "+fmt(w.waist)+" cm":""} <button class="btn ghost sm" data-act="delWeight" data-d="${w.date}" aria-label="Borrar">✕</button></span>${w.note?`<span class="q">${esc(w.note)}</span>`:""}</div>`).join("")}</div>`;
   return h;
 }
 function progEntreno(){
@@ -805,6 +860,8 @@ document.addEventListener("click",e=>{
     saveRoutine(){const d=S.ui.rtDraft;if(!d.name.trim()){toast("Ponle un nombre a la rutina");return}const id=d._id||slug(d.name);save("routines/"+id,{name:d.name.trim(),exercises:d.exercises.filter(e=>e.name.trim()).map(e=>({name:e.name.trim(),sets:n(e.sets)||3,reps:e.reps||""}))});closeSheet();toast("Rutina guardada")},
     delRoutine(){const id=S.ui.rtDraft._id;save("routines/"+id,null);const cfg=Object.assign({},D("config").main||{});if(cfg.schedule){cfg.schedule=Object.fromEntries(Object.entries(cfg.schedule).filter(([,v])=>v!==id));save("config/main",cfg)}S.ui.confirm=null;closeSheet()},
     progTab(){S.ui.progTab=ds.t;render()},
+    skipCheckin(){S.ui.skipCheckin=todayStr();render()},
+    progTabPeso(){S.ui.progTab="peso"},
     progRange(){S.ui.progRange=+ds.n;render()},
     delWeight(){save("weights/"+ds.d,null)}
   };
@@ -857,7 +914,8 @@ document.addEventListener("submit",e=>{
   if(f.dataset.form==="ean"){const ean=v("eanIn");stopCamera();handleEan(ean);return}
   if(f.dataset.form==="login"){doLogin(f.dataset.mode);return}
   if(f.dataset.form==="newpass"){setNewPass();return}
-  if(f.dataset.form==="weight"){const kg=n(v("wtK"));if(!kg)return;save("weights/"+v("wtD"),{kg,note:v("wtN").trim()});toast("Peso guardado");f.reset()}
+  if(f.dataset.form==="weight"){const kg=n(v("wtK")),wa=n(v("wtW"));if(!kg&&!wa)return;const d=v("wtD");const prev=D("weights")[d]||{};save("weights/"+d,Object.assign({},prev,kg?{kg}:{},wa?{waist:wa}:{},{note:v("wtN").trim()||prev.note||""}));toast("Guardado");f.reset()}
+  if(f.dataset.form==="checkin"){const t=todayStr();const kg=n(v("ciK")),wa=n(v("ciW"));if(!kg&&!wa){toast("Escribe el peso o la cintura");return}const prev=D("weights")[t]||{};save("weights/"+t,Object.assign({},prev,kg?{kg}:{},wa?{waist:wa}:{}));toast("Guardado ✅")}
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheetFn)closeSheet()});
 
