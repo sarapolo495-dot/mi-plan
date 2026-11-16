@@ -1,6 +1,6 @@
 // Mi plan · service worker: la app abre aunque no haya cobertura.
 // Cambia VERSION cuando publiques cambios para que los móviles cojan la versión nueva.
-const VERSION = "mi-plan-v2";
+const VERSION = "mi-plan-v3";
 const SHELL = ["./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 const CDN = ["cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"];

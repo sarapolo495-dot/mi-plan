@@ -768,6 +768,7 @@ document.addEventListener("click",e=>{
     offSearch(){const q=ds.q;S.ui.off={q,status:"loading",items:[]};if(!S.ui.prodFrom&&S.ui.food&&sheetFn)S.ui.prodFrom={type:"food",date:S.date,slot:currentFoodSlot};openSheet(offSheet);offSearch(q).then(items=>{S.ui.off.items=items;S.ui.off.status="ok";drawSheet()}).catch(e=>{S.ui.off.status="error";S.ui.off.msg=navigator.onLine?"Open Food Facts no responde ahora. Inténtalo en un rato.":"Sin conexión.";drawSheet()})},
     pickOff(){const d=Object.assign({},S.ui.off.items[+ds.i]);d._notes="Datos de Open Food Facts. Compruébalos con tu envase y marca la casilla si coinciden.";const hit=d.ean&&Object.entries(D("products")).find(([,p])=>p.ean===d.ean);if(hit){afterProductPicked(hit[0]);return}S.ui.prodDraft=d;openSheet(productSheet)},
     account(){openSheet(accountSheet)},
+    setTheme(){applyTheme(ds.t);drawSheet()},
     signOut(){signOut()},
     exportData(){exportData()},
     scan(){S.ui.prodFrom=ds.from==="food"?{type:"food",date:S.date,slot:currentFoodSlot}:(ds.from==="recipe"||ds.from==="keep")?S.ui.prodFrom:null;S.ui.scan={files:[],status:"idle"};openSheet(scanSheet)},
@@ -871,8 +872,11 @@ function accountSheet(){
   <div class="row wrap"><button class="btn soft sm" data-act="exportData">Descargar copia (JSON)</button><label class="btn soft sm" for="importFile" style="cursor:pointer">Importar datos…</label><input type="file" id="importFile" accept="application/json,.json" hidden></div>
   <div class="small muted">Importar añade o sustituye documentos con el mismo nombre; no borra nada. Los productos que ya existen en la base compartida no se tocan.</div>
   ${S.ui.importMsg?`<div class="note">${esc(S.ui.importMsg)}</div>`:""}</div>
+  <div class="card stack"><h3>Aspecto</h3><div class="seg">${[["light","Claro"],["dark","Oscuro"],["auto","Como el móvil"]].map(([k,l])=>`<button class="${themeNow()===k?"on":""}" data-act="setTheme" data-t="${k}">${l}</button>`).join("")}</div></div>
   <div class="card stack"><h3>Instalar en el móvil</h3><div class="small">iPhone: abre la web en Safari → botón Compartir → “Añadir a pantalla de inicio”.<br>Android: en Chrome, menú ⋮ → “Instalar aplicación”.</div></div>`;
 }
+function themeNow(){let t="light";try{t=localStorage.getItem("mp-theme")||"light"}catch(e){}return t}
+function applyTheme(t){try{localStorage.setItem("mp-theme",t)}catch(e){}const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);const d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);const m=document.getElementById("themeColor");if(m)m.setAttribute("content",d?"#111916":"#f3f4ee")}
 function setSyncText(){const pend=Object.keys(outbox()).length;return pend?pend+" cambios pendientes de subir":"Todo sincronizado"}
 function exportData(){
   const out={format:"mi-plan-export",version:1,exportedAt:new Date().toISOString(),collections:S.data};
