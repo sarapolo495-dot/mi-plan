@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>Mi plan</title>
 <meta name="description" content="Tu plan de comidas y entreno: registro diario, menú semanal, recetas, productos con macros y sesiones de fuerza.">
 <meta name="theme-color" id="themeColor" content="#f3f4ee">
@@ -41,7 +41,9 @@ img{max-width:100%}
   --bg:#111916; --surface:#19231f; --surface-2:#22302a; --ink:#e4ebe5; --muted:#98a8a0; --line:#2b3a33;
   --forest:#1f4a3e; --forest-2:#285a4c; --on-forest:#eef4ee; --on-forest-muted:#a9c3b7;
   --p:#5fb08f; --c:#e0aa5c; --f:#b598d6; --ok:#5fb08f; --warn:#e0aa5c; --bad:#e07a62; color-scheme:dark}
-html,body{background:var(--bg);color:var(--ink)}
+html,body{background:var(--bg);color:var(--ink);overflow-x:hidden;overscroll-behavior-x:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{touch-action:manipulation}
+input,select,textarea,.input,.search,.ingedit .input{font-size:16px!important}
 body{font-family:var(--font-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 button,input,select,textarea{font:inherit;color:inherit}
