@@ -178,10 +178,11 @@ function vHoy(){
   SLOTS.forEach(s=>{
     const logged=items.filter(i=>i.slot===s.k);const pe=plan[s.k];
     if(s.opt&&!logged.length&&!pe){html+=`<div class="between card planned" style="padding:10px 14px"><span class="muted small">${s.n} (opcional)</span><button class="btn sm soft" data-act="addFood" data-slot="${s.k}">+ Añadir</button></div>`;return}
-    html+=`<div class="card slot"><div class="slot-h"><h3>${s.n}</h3>${logged.length?`<span class="state done">✓ Registrado</span>`:`<span class="state todo">Por registrar</span>`}</div>`;
+    html+=`<div class="card slot"><div class="slot-h"><h3>${s.n}</h3>${logged.length&&logged.every(i=>i.skipped)?`<span class="state todo">— No lo tomé</span>`:logged.length?`<span class="state done">✓ Registrado</span>`:`<span class="state todo">Por registrar</span>`}</div>`;
     if(logged.length){logged.forEach(it=>html+=logItem(date,it))}
     else if(pe){html+=`<div class="item"><div class="t">${esc(pe.title)}${pe.serv&&pe.serv!==1?` <span class="muted small">× ${fmt(pe.serv)}</span>`:""}</div><div></div><div class="m">${pe.libre?"Comida libre: registra lo que comas":macroLine(pe.m)}</div></div>`}
-    html+=`<div class="row wrap">${!logged.length&&pe&&!pe.libre?`<button class="btn primary sm" data-act="ate" data-slot="${s.k}">✓ Me lo he comido</button>`:""}<button class="btn soft sm" data-act="addFood" data-slot="${s.k}">${logged.length?"+ Añadir más":pe&&!pe.libre?"Comí otra cosa":"+ Registrar"}</button></div></div>`;
+    if(logged.length&&logged.every(i=>i.skipped)){html+=`</div>`;return}
+    html+=`<div class="row wrap">${!logged.length&&pe&&!pe.libre?`<button class="btn primary sm" data-act="ate" data-slot="${s.k}">✓ Me lo he comido</button>`:""}<button class="btn soft sm" data-act="addFood" data-slot="${s.k}">${logged.length?"+ Añadir más":pe&&!pe.libre?"Comí otra cosa":"+ Registrar"}</button>${!logged.length?`<button class="btn ghost sm" data-act="skipSlot" data-slot="${s.k}">✕ No lo tomé</button>`:""}</div></div>`;
   });
   const extras=items.filter(i=>!SLOTN[i.slot]||i.slot==="extra");
   html+=`<div class="card slot"><div class="slot-h"><h3>Extras y picoteo</h3><span class="muted small num">${extras.length?fmt(sumM(extras).kcal,0)+" kcal":""}</span></div>${extras.map(it=>logItem(date,it)).join("")||`<div class="muted small">Nada fuera del plan.</div>`}<div><button class="btn soft sm" data-act="addFood" data-slot="extra">+ Extra</button></div></div></section>`;
@@ -189,6 +190,7 @@ function vHoy(){
   return html;
 }
 function logItem(date,it){
+  if(it.skipped)return `<div class="item"><div class="t muted">No he comido nada</div><div class="row"><button class="btn ghost sm" data-act="delLog" data-d="${date}" data-id="${it.id}">Deshacer</button></div></div>`;
   const m={kcal:it.kcal,p:it.p,c:it.c,f:it.f,miss:{}};MK.forEach(k=>{if(n(it[k])==null)m.miss[k]=1});
   const c=S.ui.confirm==="log:"+it.id;
   return `<div class="item"><div class="t">${esc(it.name)}${it.estimated?` <span class="est">≈ estimado</span>`:""}</div><div class="row">${c?`<span class="confirm"><button class="btn sm danger" data-act="delLog" data-d="${date}" data-id="${it.id}">Borrar</button><button class="btn sm ghost" data-act="cancelConfirm">No</button></span>`:`<button class="btn ghost sm" data-act="editLog" data-d="${date}" data-id="${it.id}" aria-label="Editar">✎</button><button class="btn ghost sm" data-act="askConfirm" data-k="log:${it.id}" aria-label="Borrar">✕</button>`}</div><div class="m">${macroLine({kcal:n(it.kcal),p:n(it.p),c:n(it.c),f:n(it.f),miss:{}})}</div>${it.notes?`<div class="muted small" style="grid-column:1/-1">${esc(it.notes)}</div>`:""}</div>`;
@@ -794,6 +796,7 @@ document.addEventListener("click",e=>{
     goals(){openSheet(goalsSheet)},
     askConfirm(){S.ui.confirm=ds.k;render();drawSheet()},
     cancelConfirm(){S.ui.confirm=null;render();drawSheet()},
+    skipSlot(){const items=dayLog(S.date).filter(i=>i.slot!==ds.slot);items.push({id:uid(),slot:ds.slot,name:"No he comido nada",kcal:0,p:0,c:0,f:0,skipped:true});setLog(S.date,items);toast((SLOTN[ds.slot]||"Comida")+": sin comer")},
     ate(){const pe=dayPlan(S.date)[ds.slot];if(!pe)return;const items=dayLog(S.date).slice();items.push({id:uid(),slot:ds.slot,name:pe.title,kcal:r1(pe.m.kcal),p:r1(pe.m.p),c:r1(pe.m.c),f:r1(pe.m.f),recipeId:pe.id||null,servings:pe.serv||1,estimated:!!(pe.recipe&&pe.recipe.estimated)});setLog(S.date,items);toast("Registrado: "+pe.title)},
     copyPlanDay(){const p=dayPlan(S.date),items=dayLog(S.date).slice();let c=0;SLOTS.forEach(s=>{const pe=p[s.k];if(!pe||pe.libre||items.some(i=>i.slot===s.k))return;items.push({id:uid(),slot:s.k,name:pe.title,kcal:r1(pe.m.kcal),p:r1(pe.m.p),c:r1(pe.m.c),f:r1(pe.m.f),recipeId:pe.id||null,servings:pe.serv||1});c++});if(!c){toast("No hay comidas planificadas pendientes");return}setLog(S.date,items);toast(c+" comidas registradas desde el plan")},
     addFood(){S.ui.food=null;const d=S.date,sl=ds.slot;openSheet(()=>foodSheet(d,sl))},

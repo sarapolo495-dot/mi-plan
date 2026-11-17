@@ -43,6 +43,7 @@ img{max-width:100%}
   --p:#5fb08f; --c:#e0aa5c; --f:#b598d6; --ok:#5fb08f; --warn:#e0aa5c; --bad:#e07a62; color-scheme:dark}
 html,body{background:var(--bg);color:var(--ink);overflow-x:hidden;overscroll-behavior-x:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html{touch-action:manipulation}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:50;pointer-events:none}
 input,select,textarea,.input,.search,.ingedit .input{font-size:16px!important}
 body{font-family:var(--font-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
