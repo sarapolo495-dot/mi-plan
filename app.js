@@ -29,8 +29,8 @@ function slug(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").
 function lsGet(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
 function lsSet(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const D=c=>S.data[c];
-function isGymDay(date){const pd=D("plan")[date]||{};if(pd.gym===true)return true;if(pd.gym===false)return false;
-  if(((D("config").main||{}).schedule||{})[dowIdx(date)])return true;return Object.values(D("workouts")).some(w=>w&&w.date===date)}
+function isGymDay(date){const pd=D("plan")[date]||{};if(pd.gym===true)return true;if(Object.values(D("workouts")).some(w=>w&&w.date===date))return true;if(pd.gym===false)return false;
+  return !!(((D("config").main||{}).schedule||{})[dowIdx(date)])}
 function goals(date){const cfg=D("config").main||{};const base=Object.assign({},DEFAULT_GOALS,cfg.goals||{});
   if(date&&cfg.goalsRest&&!isGymDay(date))return Object.assign({},base,cfg.goalsRest,{rest:true});
   return base}
